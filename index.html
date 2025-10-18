@@ -237,6 +237,8 @@
     function saveEntry(entry) {
       entries.push(entry);
       localStorage.setItem('entries', JSON.stringify(entries));
+      setHashFromState();
+
     }
 
     form.addEventListener('submit', function (e) {
@@ -311,11 +313,82 @@ while (nameElement.scrollWidth > nameElement.clientWidth && parseInt(nameElement
       document.body.removeChild(link);
     }
 
-    window.addEventListener('load', () => {
-      entries.forEach(entry => {
-        addRow(entry.code, entry.name, entry.price, entry.gender, entry.discount);
-      });
+   window.addEventListener('load', () => {
+  const loadedFromHash = tryLoadFromHash();
+  if (!loadedFromHash) {
+    // грузим из localStorage, если ссылки с данными нет
+    entries.forEach(entry => {
+      addRow(entry.code, entry.name, entry.price, entry.gender, entry.discount);
     });
+    // и сразу формируем авто-ссылку на текущее состояние
+    setHashFromState();
+  }
+});
+
+    // === АВТОМАТИЧЕСКАЯ ССЫЛКА С ДАННЫМИ ===
+
+// Собираем состояние для шаринга
+function buildSharePayload() {
+  return {
+    entries,                                   // все строки таблицы
+    usedBarcodes: Array.from(usedBarcodes)     // уже занятые штрихкоды
+  };
+}
+
+// Обновляем hash ссылки без добавления записи в историю
+function setHashFromState() {
+  try {
+    const json = JSON.stringify(buildSharePayload());
+    const compressed = LZString.compressToEncodedURIComponent(json);
+    const newUrl = `${location.origin}${location.pathname}#data=${compressed}`;
+
+    // Ограничение длины URL (на всякий случай)
+    if (newUrl.length > 15000) {
+      console.warn('URL слишком длинный, пропускаю установку hash.');
+      return;
+    }
+    history.replaceState(null, '', newUrl); // не скроллит, не добавляет в историю
+  } catch (e) {
+    console.error('Не удалось обновить ссылку из состояния:', e);
+  }
+}
+
+// При открытии по ссылке поднимаем состояние из #data
+function tryLoadFromHash() {
+  const prefix = '#data=';
+  if (!location.hash.startsWith(prefix)) return false;
+
+  try {
+    const compressed = location.hash.slice(prefix.length);
+    const json = LZString.decompressFromEncodedURIComponent(compressed);
+    const payload = JSON.parse(json || '{}');
+
+    // чистим текущее состояние
+    entries.length = 0;
+    (payload.entries || []).forEach(e => entries.push(e));
+
+    usedBarcodes.clear();
+    (payload.usedBarcodes || []).forEach(c => usedBarcodes.add(c));
+
+    // сохраняем локально для устойчивости
+    localStorage.setItem('entries', JSON.stringify(entries));
+    localStorage.setItem('usedBarcodes', JSON.stringify(Array.from(usedBarcodes)));
+
+    // перерисовываем таблицу
+    table.innerHTML = '';
+    entries.forEach(entry => {
+      addRow(entry.code, entry.name, entry.price, entry.gender, entry.discount);
+    });
+
+    return true;
+  } catch (err) {
+    console.error('Ошибка чтения данных из hash:', err);
+    return false;
+  }
+}
+
   </script>
+  <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
+
 </body>
 </html>
