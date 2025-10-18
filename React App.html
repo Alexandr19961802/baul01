@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Сервис создания этикеток</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(to right, #dce1e4, #a6b1b7);
+      padding: 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 {
+      margin-bottom: 20px;
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    input[type="text"] {
+      padding: 10px;
+      margin-top: 20px;
+      font-size: 14px;
+    }
+    button {
+      padding: 10px;
+      margin-top: 10px;
+      cursor: pointer;
+    }
+    table {
+      margin-top: 30px;
+      border-collapse: collapse;
+      width: 100%;
+      background: white;
+    }
+    th, td {
+      padding: 10px;
+      border: 1px solid #ccc;
+      text-align: center;
+    }
+
+    #printArea {
+      display: none;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: white;
+      padding: 20px;
+    }
+
+    #priceLine {
+  display: flex;
+  justify-content: center;
+  align-items: baseline; /* выравниваем по базовой линии текста */
+  gap: 10px;
+  line-height: 1;
+}
+
+#printPriceValue {
+  font-size: 200px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+#printCurrency {
+  font-size: 60px;
+  font-weight: bold;
+  line-height: 1;
+  align-self: flex-end; /* дополнительно слегка выравнивает вниз */
+}
+
+
+    #printNameText {
+      font-size: 48px;
+      margin: 20px 0 30px;
+    }
+
+    @media print {
+      body * {
+        display: none !important;
+      }
+      #printArea, #printArea * {
+        display: block !important;
+        visibility: visible !important;
+      }
+      #printArea {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        display: flex !important;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+      }
+      #priceLine {
+    align-items: baseline !important;
+  }
+  #printPriceValue, #printCurrency {
+    line-height: 1 !important;
+    display: inline-block !important;
+  }
+  #printPriceValue {
+    font-size: 300px !important;
+    font-weight: bold !important;
+    line-height: 1 !important;
+  }
+
+  /* ВАЛЮТА */
+  #printCurrency {
+    font-size: 100px !important;
+    font-weight: bold !important;
+    line-height: 1 !important;
+    position: relative;
+    top: 10px;
+  }
+
+  /* НАЗВАНИЕ ТОВАРА — всегда помещается */
+  #printNameText {
+    font-size: clamp(36px, 5vw, 80px) !important; /* чуть уменьшаем, если очень длинно */
+    font-weight: normal !important;
+    line-height: 1.1 !important;
+    white-space: normal !important;       /* разрешаем переносы */
+    word-break: break-word !important;     /* переносим длинные слова */
+    hyphens: auto !important;              /* мягкие переносы (ru) */
+    overflow: visible !important;          /* ничего не прячем */
+    text-overflow: clip !important;        /* отключаем многоточие */
+    max-width: 92vw !important;
+    text-align: center !important;
+    margin-top: 28px !important;
+    margin-bottom: 24px !important;        /* чтобы не упиралось в штрихкод */
+  }
+
+  /* Чуть плотнее блок цены, чтобы освободить место названию */
+  #priceLine { margin-bottom: 3px !important; }
+  #barcode { margin-top: 6px !important; }
+
+    }
+  </style>
+</head>
+<body>
+  <h1>СЕРВИС СОЗДАНИЯ ЭТИКЕТОК</h1>
+  <form id="labelForm">
+    <label>
+      <input type="text" id="productName" placeholder="Номенклатура" required />
+    </label>
+    <label>
+      <input type="text" id="productPrice" placeholder="Цена" required />
+    </label>
+
+    <div>
+      <p><strong>Тип Скидки</strong></p>
+      <label><input type="radio" name="discountType" value="без скидки" checked> Без скидки</label>
+      <label><input type="radio" name="discountType" value="дисконт"> Дисконт</label>
+    </div>
+
+    <div>
+      <p><strong>Укажите Пол</strong></p>
+      <label><input type="radio" name="gender" value="мужской"> М</label>
+      <label><input type="radio" name="gender" value="женский"> Ж</label>
+      <label><input type="radio" name="gender" value="унисекс"> У</label>
+      <label><input type="radio" name="gender" value="детский"> Д</label>
+    </div>
+
+    <button type="submit">Создать запись</button>
+    <button type="button" onclick="downloadCSV()">Скачать CSV</button>
+  </form>
+
+  <table id="labelTable">
+    <thead>
+      <tr>
+        <th>Штрих-код</th>
+        <th>Номенклатура</th>
+        <th>Цена</th>
+        <th>Пол</th>
+        <th>Скидка</th>
+        <th>Кнопка Печати</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <div id="printArea">
+    <div id="priceLine">
+      <span id="printPriceValue">0000</span>
+      <span id="printCurrency">грн</span>
+    </div>
+    <div id="printNameText">Название товара</div>
+    <svg id="barcode" width="300" height="130"></svg>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+  <script>
+    const form = document.getElementById('labelForm');
+    const table = document.querySelector('#labelTable tbody');
+    const printArea = document.getElementById('printArea');
+    const printNameText = document.getElementById('printNameText');
+    const printPriceValue = document.getElementById('printPriceValue');
+    const printCurrency = document.getElementById('printCurrency');
+    const barcodeSvg = document.getElementById('barcode');
+
+    const usedBarcodes = new Set(JSON.parse(localStorage.getItem('usedBarcodes') || '[]'));
+    const entries = JSON.parse(localStorage.getItem('entries') || '[]');
+
+    function generateUniqueBarcode() {
+      let code;
+      do {
+        code = Math.floor(Math.random() * 1e12).toString().padStart(12, '0');
+      } while (usedBarcodes.has(code));
+      usedBarcodes.add(code);
+      localStorage.setItem('usedBarcodes', JSON.stringify(Array.from(usedBarcodes)));
+      return code;
+    }
+
+    function addRow(code, name, price, gender, discount) {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${code}</td>
+        <td>${name}</td>
+        <td>${price}</td>
+        <td>${gender}</td>
+        <td>${discount}</td>
+        <td><button onclick="printLabel('${code}', '${name}', '${price}', '${gender}', '${discount}')">Печать Этикетку</button></td>
+      `;
+      table.appendChild(row);
+    }
+
+    function saveEntry(entry) {
+      entries.push(entry);
+      localStorage.setItem('entries', JSON.stringify(entries));
+    }
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      const name = document.getElementById('productName').value.trim();
+      const price = document.getElementById('productPrice').value.trim();
+      const code = generateUniqueBarcode();
+      const discount = document.querySelector('input[name="discountType"]:checked').value;
+      const gender = document.querySelector('input[name="gender"]:checked')?.value || '';
+
+      if (!name || !price) return;
+
+      addRow(code, name, price, gender, discount);
+      saveEntry({ code, name, price, gender, discount });
+      form.reset();
+    });
+
+    document.getElementById('productPrice').addEventListener('input', function () {
+      this.value = this.value.replace(/[^0-9]/g, '');
+    });
+
+    document.getElementById('productName').addEventListener('input', function () {
+      this.value = this.value.replace(/[^a-zA-Zа-яА-ЯёЁіІїЇєЄґҐ\s\-]/g, '');
+    });
+
+    function printLabel(code, name, price, gender, discount) {
+      const fullName = `${name} ${gender}${discount !== 'без скидки' ? ' ' + discount : ''}`.trim();
+      printPriceValue.textContent = price;
+      printNameText.textContent = fullName;
+      // Автоматическое уменьшение шрифта при длинном названии
+const nameElement = printNameText;
+nameElement.style.fontSize = '80px';
+while (nameElement.scrollWidth > nameElement.clientWidth && parseInt(nameElement.style.fontSize) > 30) {
+  nameElement.style.fontSize = (parseInt(nameElement.style.fontSize) - 2) + 'px';
+}
+
+      barcodeSvg.innerHTML = '';
+      JsBarcode(barcodeSvg, code, {
+  format: "EAN13",
+  lineColor: "#000",
+  width: 12,
+  height: 160,
+  fontSize: 100,     // крупные цифры под штрихкодом
+  textMargin: 0,   // отступ от штрихкода до цифр
+  margin:5,       // внешние поля, чтобы ничего не обрезалось
+  displayValue: true
+});
+
+
+      printArea.style.display = 'block';
+      setTimeout(() => {
+        window.print();
+        printArea.style.display = 'none';
+      }, 300);
+    }
+
+    function downloadCSV() {
+      let csv = 'Штрих-код,Номенклатура,Цена,Пол,Скидка\n';
+      entries.forEach(e => {
+        csv += `${e.code},${e.name},${e.price},${e.gender},${e.discount}\n`;
+      });
+
+      const BOM = '\uFEFF';
+      const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', 'etiketki.csv');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    window.addEventListener('load', () => {
+      entries.forEach(entry => {
+        addRow(entry.code, entry.name, entry.price, entry.gender, entry.discount);
+      });
+    });
+  </script>
+</body>
+</html>
